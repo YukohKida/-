@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>音声/非音声 2AFC（恒常法）</title>
+  <!-- jsPsych v7 (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/jspsych@7.3.4/dist/jspsych.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspsych@7.3.4/css/jspsych.css" />
+  <!-- Plugins -->
+  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-preload@1.2.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-button-response@1.2.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-audio-button-response@1.2.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-survey-text@1.2.0"></script>
+
+  <style>
+    body { background:#0b0c10; }
+    .jspsych-content { max-width: 720px; color:#e6e6e6; }
+    .muted { opacity:.8; font-size:.9rem; }
+    .grid { display:grid; gap:1rem; }
+    .center { text-align:center; }
+    button.jspsych-btn { font-size:1.05rem; padding:.6rem 1.2rem; border-radius:.8rem; }
+    audio { width:100%; margin: 1rem 0; }
+    .kbd { padding:.1rem .35rem; border:1px solid #aaa; border-bottom-width:2px; border-radius:.35rem; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .small { font-size:.95rem; }
+  </style>
+</head>
+<body>
+<script>
+// ======== 実験メタ情報 ========
+const EXP_ID   = "speech_vs_nonspeech_2AFC_MOCS_v1"; // 恒常法（Method of Constant Stimuli）
+const VERSION  = "2025-11-07";
+
+// ======== DataPipe 送信設定（必要に応じて編集） ========
+const USE_DATAPIPE = true; // DataPipeへ送るなら true
+const DATAPIPE_ENDPOINT = "https://example.com/datapipe/ingest"; // あなたのエンドポイントに変更
+const DATAPIPE_HEADERS  = { "Content-Type": "application/json" /*, "Authorization": "Bearer <TOKEN>"*/ };
+
+async function sendToDataPipe(payload) {
+  if (!USE_DATAPIPE) return;
+  try {
+    await fetch(DATAPIPE_ENDPOINT, {
+      method: 'POST',
+      headers: DATAPIPE_HEADERS,
+      mode: 'cors',
+      body: JSON.stringify(payload)
+    });
+  } catch (e) {
+    console.warn('DataPipe送信に失敗:', e);
+  }
+}
+
+// ======== 刺激定義（恒常法：固定レベル × 反復回数） ========
+// 例：SNRレベルや加工条件ごとにMP3を用意。ファイルは /stimuli/ 以下に配置。
+// ファイル命名規則の例：speech_snr-10_01.mp3, speech_snr-5_02.mp3, nonspeech_noise_01.mp3 など。
+// 実データに合わせて下を編集。
+const CONDITIONS = [
+  // type: 'speech' or 'nonspeech'（正解カテゴリ）
+  { label: 'SNR -10 dB', type: 'speech',    files: ['stimuli/speech_snr-10_01.mp3','stimuli/speech_snr-10_02.mp3','stimuli/speech_snr-10_03.mp3'] },
+  { label: 'SNR  -5 dB', type: 'speech',    files: ['stimuli/speech_snr-5_01.mp3', 'stimuli/speech_snr-5_02.mp3', 'stimuli/speech_snr-5_03.mp3'] },
+  { label: 'SNR   0 dB', type: 'speech',    files: ['stimuli/speech_snr0_01.mp3',  'stimuli/speech_snr0_02.mp3',  'stimuli/speech_snr0_03.mp3'] },
+  { label: 'Non-speech', type: 'nonspeech', files: ['stimuli/nonspeech_01.mp3',     'stimuli/nonspeech_02.mp3',     'stimuli/nonspeech_03.mp3'] }
+];
+
+// 各ファイルから timelineVariables を生成
+function buildTimelineVariables(conditions, repeatsPerFile = 1) {
+  const vars = [];
+  conditions.forEach(c => {
+    c.files.forEach(path => {
+      for (let r = 0; r < repeatsPerFile; r++) {
+        vars.push({
+          stim_path: path,
+          condition_label: c.label,
+          true_category: c.type // 正解
+        });
+      }
+    });
+  });
+  return vars;
+}
+
+// 反復回数を調整
+const REPEATS_PER_FILE = 1; // 例: 各MP3を1回ずつ提示
+const TIMELINE_VARS = buildTimelineVariables(CONDITIONS, REPEATS_PER_FILE);
+
+// ======== 事前読み込み ========
+const PRELOAD_AUDIO = TIMELINE_VARS.map(v => v.stim_path);
+
+// ======== 実験本体 ========
+const jsPsych = initJsPsych({
+  on_finish: async function() {
+    const all = jsPsych.data.get().csv();
+    // ブラウザ保存
+    jsPsych.data.get().localSave('csv', `${EXP_ID}_${jsPsych.timelineVariable?.participant_id || 'anon'}.csv`);
+  }
+});
+
+// 参加者IDをURLクエリ or 乱数で
+function getParticipantId() {
+  const url = new URL(window.location.href);
+  const pid = url.searchParams.get('pid');
+  return pid || `P${Math.random().toString(36).slice(2,8)}`;
+}
+const PARTICIPANT_ID = getParticipantId();
+
+// セッションID（開始時刻）
+const SESSION_ID = `${Date.now()}`;
+
+// ---- プリロード（音はユーザ操作後にデコード：モバイル対策） ----
+const preload = {
+  type: jsPsychPreload,
+  audio: PRELOAD_AUDIO,
+  max_load_time: 120000,
+  show_detailed_errors: true,
+  message: '<p>音声を読み込んでいます…</p>'
+};
+
+// ---- 同意 ----
+const consent = {
+  type: jsPsychHtmlButtonResponse,
+  stimulus: `
+  <h2>研究参加の同意</h2>
+  <p>この実験は、音声か否かの判断に関する認知研究です。ヘッドホンの使用を推奨します。</p>
+  <ul class="small">
+    <li>所要時間: 約5–10分</li>
+    <li>刺激: MP3音声</li>
+    <li>回答: 2択（音声 / 音声ではない）</li>
+    <li>データ: 反応と反応時間、試行条件、簡単な属性情報</li>
+  </ul>
+  <p class="muted">参加は任意で、途中で中止できます。</p>
+  `,
+  choices: ['同意する']
+};
+
+// ---- 音量確認（任意のチーン音などを用意） ----
+const volume_check = {
+  type: jsPsychAudioButtonResponse,
+  stimulus: 'stimuli/volume_check_tone.mp3', // 任意の短音
+  choices: ['再生しました（次へ）'],
+  prompt: '<p>音量を快適に聞こえる程度に調整してください。</p>'
+};
+
+// ---- 教示 ----
+const instructions = {
+  type: jsPsychHtmlButtonResponse,
+  stimulus: `
+    <h2>課題</h2>
+    <p>各試行で音が1回再生されます。<br/>それが<strong>「音声（Speech）」</strong>か<strong>「音声ではない（Non‑speech）」</strong>かをできるだけ正確に選んでください。</p>
+    <p>選択肢はボタンで表示されます。音は1回のみ再生されます（必要に応じて繰り返し再生を許可する設計も可能）。</p>
+  `,
+  choices: ['開始']
+};
+
+// ---- 試行（2AFC） ----
+const trial_audio_2afc = {
+  type: jsPsychAudioButtonResponse,
+  stimulus: jsPsych.timelineVariable('stim_path'),
+  choices: ['音声 (Speech)', '音声ではない (Non‑speech)'],
+  response_allowed_while_playing: false,
+  prompt: () => {
+    const label = jsPsych.timelineVariable('condition_label');
+    return `<p class="muted">条件: ${label}</p>`; // 盲検にする場合は空文字に
+  },
+  trial_ends_after_audio: false, // 応答で終了
+  data: {
+    exp_id: EXP_ID,
+    version: VERSION,
+    participant_id: PARTICIPANT_ID,
+    session_id: SESSION_ID,
+    stim_path: jsPsych.timelineVariable('stim_path'),
+    condition_label: jsPsych.timelineVariable('condition_label'),
+    true_category: jsPsych.timelineVariable('true_category'),
+    task: '2AFC'
+  },
+  on_finish: async (data) => {
+    // 応答→正誤
+    const choiceIndex = data.response; // 0 or 1
+    const resp_label = choiceIndex === 0 ? 'speech' : 'nonspeech';
+    data.response_label = resp_label;
+    data.correct = (resp_label === data.true_category);
+
+    // DataPipeへ送信
+    const payload = {
+      exp_id: EXP_ID,
+      version: VERSION,
+      event: 'trial_finish',
+      timestamp: new Date().toISOString(),
+      participant_id: PARTICIPANT_ID,
+      session_id: SESSION_ID,
+      user_agent: navigator.userAgent,
+      page_origin: location.origin,
+      trial: {
+        rt: data.rt,
+        stim_path: data.stim_path,
+        condition_label: data.condition_label,
+        true_category: data.true_category,
+        response_label: data.response_label,
+        correct: data.correct
+      }
+    };
+    await sendToDataPipe(payload);
+  }
+};
+
+// ---- ブロック化（任意）・シャッフル ----
+// 完全シャッフル（恒常法なので層化も検討可）
+function shuffle(array) { return array.sort(() => Math.random() - 0.5); }
+const shuffledVars = shuffle(TIMELINE_VARS);
+
+const trial_proc = {
+  timeline: [trial_audio_2afc],
+  timeline_variables: shuffledVars,
+  randomize_order: false
+};
+
+// ---- 属性（簡易） ----
+const demographics = {
+  type: jsPsychSurveyText,
+  questions: [
+    { prompt: '年齢（任意）', name: 'age', required: false },
+    { prompt: '性別（任意）', name: 'gender', required: false }
+  ],
+  on_finish: async (data) => {
+    await sendToDataPipe({
+      exp_id: EXP_ID,
+      version: VERSION,
+      event: 'demographics',
+      timestamp: new Date().toISOString(),
+      participant_id: PARTICIPANT_ID,
+      session_id: SESSION_ID,
+      responses: data.response
+    });
+  }
+};
+
+// ---- 終了画面 ----
+const end = {
+  type: jsPsychHtmlButtonResponse,
+  stimulus: '<h2>終了</h2><p>ご協力ありがとうございました。</p><p class="muted">データは自動保存されました（CSVダウンロード）。</p>',
+  choices: ['閉じる']
+};
+
+// ---- タイムライン構築 ----
+const timeline = [preload, consent, volume_check, instructions, trial_proc, demographics, end];
+
+// ---- 実行 ----
+jsPsych.run(timeline);
+
+</script>
+</body>
+</html>
