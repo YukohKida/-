@@ -184,8 +184,15 @@ const trial_2afc = {
   }
 };
 
-// シャッフル
-procedure = { timeline:[trial_2afc, iti], timeline_variables: TIMELINE_VARS, randomize_order:true }
+// シャッフル（手続きブロック）
+const procedure = {
+  timeline: [trial_2afc, iti],
+  timeline_variables: TIMELINE_VARS,
+  randomize_order: true
+};
+
+// ★ここで push（属性の前）
+timeline.push(procedure);
 
 // 4) 属性
 timeline.push({
