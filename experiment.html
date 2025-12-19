@@ -42,26 +42,32 @@ const PARTICIPANT_ID = getParam('pid') || `P${Math.random().toString(36).slice(2
 const SESSION_ID     = `${Date.now()}`;
 
 // ========== 刺激仕様 ==========
-// 水準: 2–12 Hz を 2 Hz 刻み（6水準）× 各5ファイル = 30刺激
+// 水準
 const LEVELS = [2,4,6,8,10,12];
-// 命名規則: <category>_<hz>_<index>.mp3 例: speech_2_01.mp3, nonspeech_2_01.mp3
-// 今回は「音声 vs 非音声」を判断させるが、評価は“音声と判断された割合”。正誤ラベルは付与しない。
-// 実ファイルは /stimuli/ 配下に置くこと。
-const FILES_PER_LEVEL = 5;
+
+// 各Hzにある s 番号（あなたの例）
+const S_IDS = [31,32,33,34,35];
+
+// 末尾の _1 が固定なら
+const TAKE = 1;
 
 function buildStimList(){
   const arr = [];
   for(const hz of LEVELS){
-    for(let i=1;i<=FILES_PER_LEVEL;i++){
-      // ここではカテゴリを固定せず、ファイル名だけを持つ（判断は主観）。
+    for(const s of S_IDS){
       arr.push({
         condition_hz: hz,
-        stim_path: `stimuli/${hz}_${String(i).padStart(2,'0')}.mp3`
+        s_id: s,
+        stim_path: `stimuli/sample_${hz}Hz_s${s}_${TAKE}.wav`
       });
     }
   }
-  return arr;
+  return arr; // 6*5=30
 }
+
+const TIMELINE_VARS = buildStimList();
+const PRELOAD_AUDIO = TIMELINE_VARS.map(v => v.stim_path)
+  .concat(['stimuli/volume_check_tone.mp3']);
 
 const TIMELINE_VARS = buildStimList(); // 30行想定
 
