@@ -69,7 +69,7 @@ function buildStimList(){
 const TIMELINE_VARS = buildStimList();
 
 // 事前読み込み（ブラウザによってはユーザ操作後にデコード）
-const PRELOAD_AUDIO = TIMELINE_VARS.map(v => v.stim_path).concat(['stimuli/volume_check_tone.mp3']);
+const PRELOAD_AUDIO = TIMELINE_VARS.map(v => v.stim_path).concat(['stimuli/volume_check_tone.wav']);
 
 // ========== jsPsych 初期化 ==========
 const jsPsych = initJsPsych({
@@ -127,7 +127,7 @@ timeline.push({
 // 2) 音量調整（基準音）
 timeline.push({
   type: jsPsychAudioButtonResponse,
-  stimulus: 'stimuli/volume_check_tone.mp3',
+  stimulus: 'stimuli/volume_check_tone.wav',
   choices: ['次へ'],
   prompt: '<p>基準音です。音量を調整して <strong>次へ</strong> を押してください。</p>',
   response_allowed_while_playing: false
