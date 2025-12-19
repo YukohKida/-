@@ -12,6 +12,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-keyboard-response@1.2.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-audio-keyboard-response@1.2.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-survey-text@1.2.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-button-response@1.2.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-audio-button-response@1.2.0"></script>
   <!-- DataPipe: jspsych-contrib/plugin-pipe -->
   <script src="https://cdn.jsdelivr.net/npm/@jspsych-contrib/plugin-pipe@0.5.0"></script>
 
@@ -20,6 +22,12 @@
     .jspsych-content { max-width: 760px; color:#e6e6e6; }
     .muted { opacity:.8; font-size:.95rem; }
     kbd { padding:.1rem .35rem; border:1px solid #aaa; border-bottom-width:2px; border-radius:.35rem; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .jspsych-btn{
+      font-size: 1.2rem;
+      padding: 1rem 1.25rem;
+      margin: .5rem .25rem;
+      min-height: 48px; /* タップしやすく */
+    }
   </style>
 </head>
 <body>
@@ -95,23 +103,30 @@ timeline.push({
 
 // 1) 実験案内（キー操作）
 timeline.push({
-  type: jsPsychHtmlKeyboardResponse,
+  type: jsPsychHtmlButtonResponse,
   stimulus: `
-    <h2>音声/非音声 2AFC（F/Jキー）</h2>
-    <p>各試行で音が1回再生されます。再生後、<kbd>F</kbd> = <strong>音声</strong>、<kbd>J</kbd> = <strong>音声ではない</strong> を押してください。</p>
-    <p class="muted">反応時間制限なし。試行間間隔は 0.8–1.2 秒のランダム。</p>
-    <p class="muted">ヘッドホン使用を推奨します。</p>
-    <p>準備ができたら任意のキーを押して開始。</p>
+    <h2>音声/非音声 2AFC</h2>
+    <p>各試行で音が1回再生されます。再生後、<strong>音声</strong> または <strong>音声ではない</strong> を選んでください。</p>
+    <p class="muted">PCでは <kbd>F</kbd>=音声 / <kbd>J</kbd>=音声ではない でも回答できます。</p>
   `,
-  choices: "ALL_KEYS"
+  choices: ['開始'],
+  on_load: () => {
+    // PCキーボードでも開始できるように（任意）
+    const l = jsPsych.pluginAPI.getKeyboardResponse({
+      callback_function: () => document.querySelector('.jspsych-btn')?.click(),
+      valid_responses: "ALL_KEYS",
+      rt_method: "performance",
+      persist: false
+    });
+  }
 });
 
 // 2) 音量調整（基準音）
 timeline.push({
-  type: jsPsychAudioKeyboardResponse,
+  type: jsPsychAudioButtonResponse,
   stimulus: 'stimuli/volume_check_tone.mp3',
-  choices: [' '], // スペースで次へ
-  prompt: '<p>基準音です。ヘッドホンの音量を調整し、<kbd>Space</kbd> で次へ。</p>',
+  choices: ['次へ'],
+  prompt: '<p>基準音です。音量を調整して <strong>次へ</strong> を押してください。</p>',
   response_allowed_while_playing: false
 });
 
@@ -121,33 +136,53 @@ const iti = { type: jsPsychHtmlKeyboardResponse, stimulus: '', choices: 'NO_KEYS
 
 // 2AFC本体
 const trial_2afc = {
-  type: jsPsychAudioKeyboardResponse,
+  type: jsPsychAudioButtonResponse,
   stimulus: jsPsych.timelineVariable('stim_path'),
-  choices: [KEY_SPEECH, KEY_NONSPEECH],
+  choices: ['音声', '音声ではない'],
   response_allowed_while_playing: false,
   prompt: () => (
-    `<p class="muted">再生後に <kbd>${KEY_SPEECH.toUpperCase()}</kbd>=音声 / <kbd>${KEY_NONSPEECH.toUpperCase()}</kbd>=音声ではない</p>`
+    `<p class="muted">（PC：<kbd>F</kbd>=音声 / <kbd>J</kbd>=音声ではない）</p>`
   ),
   data: {
     task: '2AFC',
     condition_hz: jsPsych.timelineVariable('condition_hz'),
     stim_path: jsPsych.timelineVariable('stim_path')
   },
+  on_start: (trial) => { trial._resp_source = 'touch'; },
+  on_load: () => {
+    // ボタン試行にキーボードも足す（任意）
+    const btns = () => document.querySelectorAll('.jspsych-btn');
+    jsPsych.pluginAPI.getKeyboardResponse({
+      callback_function: (info) => {
+        const key = info.key.toLowerCase();
+        if(key === KEY_SPEECH){
+          jsPsych.getCurrentTrial()._resp_source = 'keyboard';
+          btns()[0]?.click(); // 「音声」
+        } else if(key === KEY_NONSPEECH){
+          jsPsych.getCurrentTrial()._resp_source = 'keyboard';
+          btns()[1]?.click(); // 「音声ではない」
+        }
+      },
+      valid_responses: [KEY_SPEECH, KEY_NONSPEECH],
+      rt_method: "performance",
+      persist: true,          // タップで終了しても生き続けないように、次行で消す
+      allow_held_key: false
+    });
+
+    // trial終了時に自動でDOMが消えるので、persist:trueでも積み上がりにくいが、
+    // 気になるなら persist:false + 1回押しのみ、でもOK。
+  },
   on_finish: (data) => {
-    const key = jsPsych.pluginAPI.compareKeys(data.response, KEY_SPEECH) ? KEY_SPEECH : KEY_NONSPEECH;
-    data.response_key   = key;
-    data.response_label = (key === KEY_SPEECH) ? 'speech' : 'nonspeech';
-    // 正誤は定義しない（割合解析用）
+    // audio-button-responseの response は「choices の index」(0/1)
+    const idx = data.response;
+    data.response_label = (idx === 0) ? 'speech' : 'nonspeech';
+    data.response_key   = (idx === 0) ? KEY_SPEECH : KEY_NONSPEECH; // 互換用に残す
+    data.response_source = jsPsych.getCurrentTrial()._resp_source;   // touch/keyboard
   }
 };
 
 // シャッフル
-const shuffled = jsPsych.randomization.shuffle(TIMELINE_VARS);
-
-// 本試行: [trial, ITI] × 30
-shuffled.forEach(v => {
-  timeline.push({ timeline: [trial_2afc, iti], timeline_variables: [v] });
-});
+procedure = { timeline:[trial, iti], timeline_variables: TIMELINE_VARS, randomize_order:true }
 
 // 4) 属性
 timeline.push({
