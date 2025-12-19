@@ -5,9 +5,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-preload@1.2.0/dist/index.browser.min.js"></script>
 </head>
 <body>
-<script>
-  console.log('initJsPsych:', typeof initJsPsych);
-  console.log('jsPsychPreload:', typeof jsPsychPreload);
+<script
+  src="…plugin-preload…"
+  onload="console.log('loaded preload')"
+  onerror="console.error('FAILED preload', this.src)">
 </script>
 </body>
 </html>
