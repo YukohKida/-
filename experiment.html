@@ -216,12 +216,12 @@ timeline.push({
 // DataPipe で発行された experiment ID を設定し、ダッシュボード推奨のファイル名関数を使う。
 const DATAPIPE_EXPERIMENT_ID = 'REPLACE_WITH_YOUR_EXPERIMENT_ID'; // pipe.jspsych.org で作成
 
-const save_to_datapipe = {
+const save_data = {
   type: jsPsychPipe,
-  action: 'save',
-  experiment_id: DATAPIPE_EXPERIMENT_ID,
-  filename: () => `${EXP_ID}_${PARTICIPANT_ID}_${SESSION_ID}.csv`,
-  data_string: () => jsPsych.data.get().csv()
+  action: "save",
+  experiment_id: "2xDqhflOiUKP",
+  filename: filename,
+  data_string: ()=>jsPsych.data.get().csv()
 };
 
 timeline.push(save_to_datapipe);
