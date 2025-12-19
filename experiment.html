@@ -14,6 +14,9 @@
   <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-survey-text@1.2.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-button-response@1.2.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-audio-button-response@1.2.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-button-response@1.2.0/dist/index.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-audio-button-response@1.2.0/dist/index.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@jspsych-contrib/plugin-pipe@0.5.0/dist/index.browser.min.js"></script>
   <!-- DataPipe: jspsych-contrib/plugin-pipe -->
   <script src="https://cdn.jsdelivr.net/npm/@jspsych-contrib/plugin-pipe@0.5.0"></script>
 
@@ -68,8 +71,6 @@ function buildStimList(){
 const TIMELINE_VARS = buildStimList();
 const PRELOAD_AUDIO = TIMELINE_VARS.map(v => v.stim_path)
   .concat(['stimuli/volume_check_tone.mp3']);
-
-const TIMELINE_VARS = buildStimList(); // 30行想定
 
 // 事前読み込み（ブラウザによってはユーザ操作後にデコード）
 const PRELOAD_AUDIO = TIMELINE_VARS.map(v => v.stim_path).concat(['stimuli/volume_check_tone.mp3']);
