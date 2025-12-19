@@ -4,21 +4,20 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>音声/非音声 2AFC（恒常法, F/Jキー）</title>
-  <!-- jsPsych v7 (CDN固定) -->
-  <script src="https://cdn.jsdelivr.net/npm/jspsych@7.3.4/dist/jspsych.js"></script>
+  <!-- jsPsych v7 -->
+  <script src="https://cdn.jsdelivr.net/npm/jspsych@7.3.4/dist/index.browser.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspsych@7.3.4/css/jspsych.css" />
-  <!-- Plugins -->
-  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-preload@1.2.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-keyboard-response@1.2.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-audio-keyboard-response@1.2.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-survey-text@1.2.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-button-response@1.2.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-audio-button-response@1.2.0"></script>
+  
+  <!-- Plugins (all browser builds) -->
+  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-preload@1.2.0/dist/index.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-keyboard-response@1.2.0/dist/index.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-audio-keyboard-response@1.2.0/dist/index.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-survey-text@1.2.0/dist/index.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-button-response@1.2.0/dist/index.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-audio-button-response@1.2.0/dist/index.browser.min.js"></script>
+  
+  <!-- DataPipe -->
   <script src="https://cdn.jsdelivr.net/npm/@jspsych-contrib/plugin-pipe@0.5.0/dist/index.browser.min.js"></script>
-  <!-- DataPipe: jspsych-contrib/plugin-pipe -->
-  <script src="https://cdn.jsdelivr.net/npm/@jspsych-contrib/plugin-pipe@0.5.0"></script>
 
   <style>
     body { background:#0b0c10; }
@@ -69,8 +68,6 @@ function buildStimList(){
 }
 
 const TIMELINE_VARS = buildStimList();
-const PRELOAD_AUDIO = TIMELINE_VARS.map(v => v.stim_path)
-  .concat(['stimuli/volume_check_tone.mp3']);
 
 // 事前読み込み（ブラウザによってはユーザ操作後にデコード）
 const PRELOAD_AUDIO = TIMELINE_VARS.map(v => v.stim_path).concat(['stimuli/volume_check_tone.mp3']);
@@ -189,7 +186,12 @@ const trial_2afc = {
 };
 
 // シャッフル
-procedure = { timeline:[trial, iti], timeline_variables: TIMELINE_VARS, randomize_order:true }
+const procedure = {
+  timeline: [trial_2afc, iti],
+  timeline_variables: TIMELINE_VARS,
+  randomize_order: true
+};
+timeline.push(procedure);
 
 // 4) 属性
 timeline.push({
