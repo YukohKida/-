@@ -3,224 +3,207 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>音声/非音声 2AFC（恒常法, F/Jキー）</title>
-  <!-- jsPsych core -->
-  <script src="https://unpkg.com/jspsych@7.3.4"></script>
-  <link rel="stylesheet" href="https://unpkg.com/jspsych@7.3.4/css/jspsych.css" />
-  <!-- plugins（v7系のページが提示している版に合わせる） -->
-  <script src="https://unpkg.com/@jspsych/plugin-preload@1.1.3"></script>
-  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
-  <script src="https://unpkg.com/@jspsych/plugin-audio-keyboard-response@1.1.3"></script>
-  <script src="https://unpkg.com/@jspsych/plugin-survey-text@1.1.3"></script>
-  <!-- ボタン系（ここは v7 docs で 1.2.0 が案内されている） -->
-  <script src="https://unpkg.com/@jspsych/plugin-html-button-response@1.2.0"></script>
-  <script src="https://unpkg.com/@jspsych/plugin-audio-button-response@1.2.0"></script>
-  <!-- DataPipe: jspsych-contrib/plugin-pipe -->
-  <script src="https://cdn.jsdelivr.net/npm/@jspsych-contrib/plugin-pipe@0.5.0/dist/index.browser.min.js"></script>
-
+  <title>Pink Noise Maker (p5.js)</title>
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
   <style>
-    body { background:#0b0c10; }
-    .jspsych-content { max-width: 760px; color:#e6e6e6; }
-    .muted { opacity:.8; font-size:.95rem; }
-    kbd { padding:.1rem .35rem; border:1px solid #aaa; border-bottom-width:2px; border-radius:.35rem; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    .jspsych-btn{
-      font-size: 1.2rem;
-      padding: 1rem 1.25rem;
-      margin: .5rem .25rem;
-      min-height: 48px; /* タップしやすく */
-    }
+    body { margin: 0; padding: 16px; font-family: system-ui, -apple-system, sans-serif; }
+    .row { margin: 10px 0; }
+    label { display:inline-block; width: 140px; }
+    button { padding: 10px 14px; margin-right: 8px; }
+    code { background:#f3f3f3; padding:2px 6px; border-radius:6px; }
   </style>
 </head>
 <body>
 <script>
-// ========== 実験メタ情報 ==========
-const EXP_ID  = "speech_vs_nonspeech_2AFC_MOCS_v1";
-const VERSION = "2025-11-07"; // Asia/Tokyo
+let durSlider, ampSlider, fadeSlider, srSel;
+let btnPreview, btnStop, btnDownload;
+let statusP;
 
-// ========== 参加者・セッション ==========
-function getParam(name){ return new URL(location.href).searchParams.get(name); }
-const PARTICIPANT_ID = getParam('pid') || `P${Math.random().toString(36).slice(2,10)}`;
-const SESSION_ID     = `${Date.now()}`;
+let audioCtx = null;
+let currentSrc = null;
+let lastBuffer = null;
 
-// ========== 刺激仕様 ==========
-// 水準
-const LEVELS = [2,4,6,8,10,12];
+function setup() {
+  noCanvas();
 
-// 各Hzにある s 番号（あなたの例）
-const S_IDS = [31,32,33,34,35];
+  createElement('h2', 'ピンクノイズ生成 → WAVでダウンロード（p5.js）');
 
-// 末尾の _1 が固定なら
-const TAKE = 1;
+  // duration
+  let row1 = createDiv().class('row');
+  row1.child(createSpan('長さ（秒）: ').style('display','inline-block').style('width','140px'));
+  durSlider = createSlider(2, 180, 20, 1); // 2〜180秒
+  row1.child(durSlider);
+  row1.child(createSpan(' ').html('&nbsp;'));
+  row1.child(createSpan(() => durSlider.value() + ' s'));
 
-function buildStimList(){
-  const arr = [];
-  for(const hz of LEVELS){
-    for(const s of S_IDS){
-      arr.push({
-        condition_hz: hz,
-        s_id: s,
-        stim_path: `stimuli/sample_${hz}Hz_s${s}_${TAKE}.wav`
-      });
-    }
-  }
-  return arr; // 6*5=30
+  // amplitude
+  let row2 = createDiv().class('row');
+  row2.child(createSpan('音量（ゲイン）: ').style('display','inline-block').style('width','140px'));
+  ampSlider = createSlider(0.02, 0.40, 0.12, 0.01); // 0.02〜0.40
+  row2.child(ampSlider);
+  row2.child(createSpan(' ').html('&nbsp;'));
+  row2.child(createSpan(() => ampSlider.value().toFixed(2)));
+
+  // fade
+  let row3 = createDiv().class('row');
+  row3.child(createSpan('フェード（秒）: ').style('display','inline-block').style('width','140px'));
+  fadeSlider = createSlider(0.00, 0.50, 0.10, 0.01);
+  row3.child(fadeSlider);
+  row3.child(createSpan(' ').html('&nbsp;'));
+  row3.child(createSpan(() => fadeSlider.value().toFixed(2)));
+
+  // sample rate
+  let row4 = createDiv().class('row');
+  row4.child(createSpan('サンプルレート: ').style('display','inline-block').style('width','140px'));
+  srSel = createSelect();
+  [44100, 48000].forEach(v => srSel.option(String(v)));
+  srSel.selected('44100');
+  row4.child(srSel);
+
+  // buttons
+  let row5 = createDiv().class('row');
+  btnPreview  = createButton('プレビュー再生').mousePressed(onPreview);
+  btnStop     = createButton('停止').mousePressed(onStop);
+  btnDownload = createButton('WAVを生成してDL').mousePressed(onDownload);
+  row5.child(btnPreview);
+  row5.child(btnStop);
+  row5.child(btnDownload);
+
+  statusP = createP('未生成').class('row');
+  createP('出力は <code>volume_check_tone.wav</code>（WAV）です。mp3が必要なら後で変換してください。');
 }
 
-const TIMELINE_VARS = buildStimList();
+function ensureAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
 
-// 事前読み込み（ブラウザによってはユーザ操作後にデコード）
-const PRELOAD_AUDIO = TIMELINE_VARS.map(v => v.stim_path).concat(['stimuli/volume_check_tone.mp3']);
-
-// ========== jsPsych 初期化 ==========
-const jsPsych = initJsPsych({
-  on_finish: () => { /* ローカル保存はしない */ }
-});
-
-// すべてのtrialに共通プロパティを付与
-jsPsych.data.addProperties({
-  exp_id: EXP_ID,
-  version: VERSION,
-  participant_id: PARTICIPANT_ID,
-  session_id: SESSION_ID,
-  user_agent: navigator.userAgent
-});
-
-// ========== 試行パラメータ ==========
-// F=音声(Speech), J=音声ではない(Non‑speech)
-const KEY_SPEECH    = 'f';
-const KEY_NONSPEECH = 'j';
-
-function iti_ms(){ return 800 + Math.floor(Math.random()*401); } // 800–1200ms
-
-// ========== タイムライン ==========
-const timeline = [];
-
-// 0) プリロード
-timeline.push({
-  type: jsPsychPreload,
-  audio: PRELOAD_AUDIO,
-  max_load_time: 120000,
-  show_detailed_errors: true,
-  message: '<p>音声を読み込んでいます…</p>'
-});
-
-// 1) 実験案内（キー操作）
-timeline.push({
-  type: jsPsychHtmlButtonResponse,
-  stimulus: `
-    <h2>音声/非音声 2AFC</h2>
-    <p>各試行で音が1回再生されます。再生後、<strong>音声</strong> または <strong>音声ではない</strong> を選んでください。</p>
-    <p class="muted">PCでは <kbd>F</kbd>=音声 / <kbd>J</kbd>=音声ではない でも回答できます。</p>
-  `,
-  choices: ['開始'],
-  on_load: () => {
-    // PCキーボードでも開始できるように（任意）
-    const l = jsPsych.pluginAPI.getKeyboardResponse({
-      callback_function: () => document.querySelector('.jspsych-btn')?.click(),
-      valid_responses: "ALL_KEYS",
-      rt_method: "performance",
-      persist: false
-    });
+function onStop() {
+  if (currentSrc) {
+    try { currentSrc.stop(); } catch(e) {}
+    currentSrc.disconnect();
+    currentSrc = null;
   }
-});
+  statusP.html('停止');
+}
 
-// 2) 音量調整（基準音）
-timeline.push({
-  type: jsPsychAudioButtonResponse,
-  stimulus: 'stimuli/volume_check_tone.mp3',
-  choices: ['次へ'],
-  prompt: '<p>基準音です。音量を調整して <strong>次へ</strong> を押してください。</p>',
-  response_allowed_while_playing: false
-});
+function onPreview() {
+  ensureAudioCtx();
+  onStop();
 
-// 3) 本試行（MOCS, 完全シャッフル）
-// ITI用の空白トライアル
-const iti = { type: jsPsychHtmlKeyboardResponse, stimulus: '', choices: 'NO_KEYS', trial_duration: () => iti_ms() };
+  const duration = durSlider.value();
+  const amp = ampSlider.value();
+  const fade = fadeSlider.value();
+  const sr = Number(srSel.value());
 
-// 2AFC本体
-const trial_2afc = {
-  type: jsPsychAudioButtonResponse,
-  stimulus: jsPsych.timelineVariable('stim_path'),
-  choices: ['音声', '音声ではない'],
-  response_allowed_while_playing: false,
-  prompt: () => (
-    `<p class="muted">（PC：<kbd>F</kbd>=音声 / <kbd>J</kbd>=音声ではない）</p>`
-  ),
-  data: {
-    task: '2AFC',
-    condition_hz: jsPsych.timelineVariable('condition_hz'),
-    stim_path: jsPsych.timelineVariable('stim_path')
-  },
-  on_start: (trial) => { trial._resp_source = 'touch'; },
-  on_load: () => {
-    // ボタン試行にキーボードも足す（任意）
-    const btns = () => document.querySelectorAll('.jspsych-btn');
-    jsPsych.pluginAPI.getKeyboardResponse({
-      callback_function: (info) => {
-        const key = info.key.toLowerCase();
-        if(key === KEY_SPEECH){
-          jsPsych.getCurrentTrial()._resp_source = 'keyboard';
-          btns()[0]?.click(); // 「音声」
-        } else if(key === KEY_NONSPEECH){
-          jsPsych.getCurrentTrial()._resp_source = 'keyboard';
-          btns()[1]?.click(); // 「音声ではない」
-        }
-      },
-      valid_responses: [KEY_SPEECH, KEY_NONSPEECH],
-      rt_method: "performance",
-      persist: true,          // タップで終了しても生き続けないように、次行で消す
-      allow_held_key: false
-    });
+  lastBuffer = makePinkNoiseBuffer(duration, sr, amp, fade);
+  const buffer = audioCtx.createBuffer(1, lastBuffer.length, sr);
+  buffer.copyToChannel(lastBuffer, 0);
 
-    // trial終了時に自動でDOMが消えるので、persist:trueでも積み上がりにくいが、
-    // 気になるなら persist:false + 1回押しのみ、でもOK。
-  },
-  on_finish: (data) => {
-    // audio-button-responseの response は「choices の index」(0/1)
-    const idx = data.response;
-    data.response_label = (idx === 0) ? 'speech' : 'nonspeech';
-    data.response_key   = (idx === 0) ? KEY_SPEECH : KEY_NONSPEECH; // 互換用に残す
-    data.response_source = jsPsych.getCurrentTrial()._resp_source;   // touch/keyboard
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(audioCtx.destination);
+  src.start();
+  currentSrc = src;
+
+  statusP.html(`プレビュー再生中（${duration}s, SR=${sr}）`);
+  src.onended = () => {
+    if (currentSrc === src) currentSrc = null;
+    statusP.html('再生終了');
+  };
+}
+
+function onDownload() {
+  const duration = durSlider.value();
+  const amp = ampSlider.value();
+  const fade = fadeSlider.value();
+  const sr = Number(srSel.value());
+
+  const samples = makePinkNoiseBuffer(duration, sr, amp, fade);
+  const wavBlob = encodeWav16(samples, sr);
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(wavBlob);
+  a.download = 'volume_check_tone.wav';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  statusP.html(`DL作成（${duration}s, SR=${sr}, 約 ${(wavBlob.size/1024/1024).toFixed(1)} MB）`);
+}
+
+// --- pink noise generator (Paul Kellet style) ---
+function makePinkNoiseBuffer(durationSec, sampleRate, gain, fadeSec) {
+  const n = Math.floor(durationSec * sampleRate);
+  const out = new Float32Array(n);
+
+  let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
+
+  for (let i=0; i<n; i++) {
+    const white = Math.random()*2 - 1;
+
+    b0 = 0.99886 * b0 + white * 0.0555179;
+    b1 = 0.99332 * b1 + white * 0.0750759;
+    b2 = 0.96900 * b2 + white * 0.1538520;
+    b3 = 0.86650 * b3 + white * 0.3104856;
+    b4 = 0.55000 * b4 + white * 0.5329522;
+    b5 = -0.7616 * b5 - white * 0.0168980;
+    const pink = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+    b6 = white * 0.115926;
+
+    out[i] = pink * gain;
   }
-};
 
-// シャッフル
-procedure = { timeline:[trial_2afc, iti], timeline_variables: TIMELINE_VARS, randomize_order:true }
+  // fade in/out (クリック防止)
+  const fadeN = Math.floor(fadeSec * sampleRate);
+  if (fadeN > 0) {
+    for (let i=0; i<Math.min(fadeN, n); i++) {
+      out[i] *= (i / fadeN);
+    }
+    for (let i=0; i<Math.min(fadeN, n); i++) {
+      const idx = n - 1 - i;
+      out[idx] *= (i / fadeN);
+    }
+  }
 
-// 4) 属性
-timeline.push({
-  type: jsPsychSurveyText,
-  questions: [
-    { prompt: '年齢（任意）', name: 'age', required: false },
-    { prompt: '性別（任意）', name: 'gender', required: false }
-  ],
-  data: { task: 'demographics' }
-});
+  return out;
+}
 
-// 5) 終了画面
-timeline.push({
-  type: jsPsychHtmlKeyboardResponse,
-  stimulus: '<h2>終了</h2><p>ご協力ありがとうございました。</p><p class="muted">データ送信を行います。画面が切り替わるまでそのままお待ちください。</p>',
-  choices: 'NO_KEYS',
-  trial_duration: 800
-});
+// --- WAV encoder (16-bit PCM, mono) ---
+function encodeWav16(float32, sampleRate) {
+  const numChannels = 1;
+  const bytesPerSample = 2;
+  const blockAlign = numChannels * bytesPerSample;
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = float32.length * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
 
-// ========== DataPipe 送信（終了時のみ） ==========
-// DataPipe で発行された experiment ID を設定し、ダッシュボード推奨のファイル名関数を使う。
-const DATAPIPE_EXPERIMENT_ID = 'REPLACE_WITH_YOUR_EXPERIMENT_ID'; // pipe.jspsych.org で作成
+  let p = 0;
+  function writeStr(s){ for(let i=0;i<s.length;i++) view.setUint8(p++, s.charCodeAt(i)); }
+  function writeU32(v){ view.setUint32(p, v, true); p += 4; }
+  function writeU16(v){ view.setUint16(p, v, true); p += 2; }
 
-const save_to_datapipe = {
-  type: jsPsychPipe,
-  action: 'save',
-  experiment_id: DATAPIPE_EXPERIMENT_ID,
-  filename: () => `${EXP_ID}_${PARTICIPANT_ID}_${SESSION_ID}.csv`,
-  data_string: () => jsPsych.data.get().csv()
-};
+  writeStr('RIFF'); writeU32(36 + dataSize); writeStr('WAVE');
+  writeStr('fmt '); writeU32(16);
+  writeU16(1); // PCM
+  writeU16(numChannels);
+  writeU32(sampleRate);
+  writeU32(byteRate);
+  writeU16(blockAlign);
+  writeU16(16); // bits
+  writeStr('data'); writeU32(dataSize);
 
-timeline.push(save_to_datapipe);
+  // PCM samples
+  for (let i=0; i<float32.length; i++) {
+    let x = float32[i];
+    x = Math.max(-1, Math.min(1, x));
+    view.setInt16(p, x < 0 ? x * 0x8000 : x * 0x7FFF, true);
+    p += 2;
+  }
 
-// ========== 実行 ==========
-jsPsych.run(timeline);
+  return new Blob([buffer], { type: 'audio/wav' });
+}
 </script>
 </body>
 </html>
