@@ -37,10 +37,12 @@
 const EXP_ID  = "speech_vs_nonspeech_2AFC_MOCS_v1";
 const VERSION = "2025-11-07"; // Asia/Tokyo
 
+
 // ========== 参加者・セッション ==========
 function getParam(name){ return new URL(location.href).searchParams.get(name); }
 const PARTICIPANT_ID = getParam('pid') || `P${Math.random().toString(36).slice(2,10)}`;
 const SESSION_ID     = `${Date.now()}`;
+const filename = `${PARTICIPANT_ID}.csv`;
 
 // ========== 刺激仕様 ==========
 // 水準
@@ -220,7 +222,7 @@ const save_data = {
   type: jsPsychPipe,
   action: "save",
   experiment_id: "2xDqhflOiUKP",
-  filename: "experiment_data",
+  filename: filename,
   data_string: ()=>jsPsych.data.get().csv()
 };
 
